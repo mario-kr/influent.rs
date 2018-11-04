@@ -21,16 +21,16 @@ pub struct Options {
     pub chunk_size: Option<u16>
 }
 
-pub struct HttpClient<'a> {
-    credentials: Credentials<'a>,
+pub struct HttpClient {
+    credentials: Credentials,
     serializer: Box<Serializer + Send + Sync>,
     hurl: Box<Hurl + Send + Sync>,
-    hosts: Vec<&'a str>,
+    hosts: Vec<String>,
     pub max_batch: u16
 }
 
-impl<'a> HttpClient<'a> {
-    pub fn new(credentials: Credentials<'a>, serializer: Box<Serializer + Send + Sync>, hurl: Box<Hurl + Send + Sync>) -> HttpClient<'a> {
+impl HttpClient {
+    pub fn new(credentials: Credentials, serializer: Box<Serializer + Send + Sync>, hurl: Box<Hurl + Send + Sync>) -> HttpClient {
         HttpClient {
             credentials: credentials,
             serializer: serializer,
@@ -40,11 +40,11 @@ impl<'a> HttpClient<'a> {
         }
     }
 
-    pub fn add_host(&mut self, host: &'a str) {
+    pub fn add_host(&mut self, host: String) {
         self.hosts.push(host);
     }
 
-    fn get_host(&self) -> &'a str {
+    fn get_host(&self) -> &String {
         match self.hosts.first() {
             Some(host) => host,
             None => panic!("Could not get host")
@@ -52,7 +52,7 @@ impl<'a> HttpClient<'a> {
     }
 }
 
-impl<'a> Client for HttpClient<'a> {
+impl Client for HttpClient {
     fn query(&self, q: String, epoch: Option<Precision>) -> ClientReadResult {
         let host = self.get_host();
 
@@ -68,8 +68,8 @@ impl<'a> Client for HttpClient<'a> {
             url: &*{host.to_string() + "/query"},
             method: Method::GET,
             auth: Some(Auth {
-                username: self.credentials.username,
-                password: self.credentials.password
+                username: &self.credentials.username,
+                password: &self.credentials.password
             }),
             query: Some(query),
             body: None
@@ -100,18 +100,18 @@ impl<'a> Client for HttpClient<'a> {
             }
 
             let mut query = HashMap::new();
-            query.insert("db", self.credentials.database.to_string());
+            query.insert("db", self.credentials.database.clone());
 
             if let Some(ref precision) = precision {
                 query.insert("precision", precision.to_string());
             }
 
             let request = Request {
-                url: &*{host.to_string() + "/write"},
+                url: &format!("{}/write", host),
                 method: Method::POST,
                 auth: Some(Auth {
-                    username: self.credentials.username,
-                    password: self.credentials.password
+                    username: &self.credentials.username,
+                    password: &self.credentials.password
                 }),
                 query: Some(query),
                 body: Some(lines.join("\n"))
@@ -188,11 +188,11 @@ mod tests {
         }
     }
 
-    fn before<'a>(result: Box<(Fn() -> HurlResult) + Send + Sync>) -> HttpClient<'a> {
+    fn before(result: Box<(Fn() -> HurlResult) + Send + Sync>) -> HttpClient {
         let credentials = Credentials {
-            username: "gobwas",
-            password: "1234",
-            database: "test"
+            username: "gobwas".into(),
+            password: "1234".into(),
+            database: "test".into()
         };
 
         let serializer = MockSerializer::new();
@@ -204,14 +204,14 @@ mod tests {
     #[test]
     fn test_write_one() {
         let mut client = before(Box::new(|| Box::new(futures::future::ok(Response { status: 204, body: "Ok".to_string() }))));
-        client.add_host("http://localhost:8086");
+        client.add_host("http://localhost:8086".into());
         ::tokio::run(client.write_one(Measurement::new("key"), Some(Precision::Nanoseconds)).map_err(|e| panic!(e)));
     }
 
     #[test]
     fn test_write_many() {
         let mut client = before(Box::new(|| Box::new(futures::future::ok(Response { status: 204, body: "Ok".to_string() }))));
-        client.add_host("http://localhost:8086");
+        client.add_host("http://localhost:8086".into());
         assert!(client.write_many(&[Measurement::new("key")], Some(Precision::Nanoseconds)).wait().is_ok());
     }
 }

@@ -10,10 +10,10 @@ pub trait Client {
     fn query(&self, String, Option<Precision>) -> ClientReadResult;
 }
 
-pub struct Credentials<'a> {
-    pub username: &'a str,
-    pub password: &'a str,
-    pub database: &'a str
+pub struct Credentials {
+    pub username: String,
+    pub password: String,
+    pub database: String
 }
 
 pub enum Precision {
